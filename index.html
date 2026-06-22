@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ランダムくん</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f0;min-height:100vh;display:flex;justify-content:center;padding:1rem}
+.container{width:100%;max-width:480px}
+h1{font-size:18px;font-weight:500;color:#2c2c2a;text-align:center;margin:1rem 0 1.5rem}
+.section{display:none}.section.active{display:block}
+
+.deck-list{display:flex;flex-direction:column;gap:8px;margin-bottom:1rem}
+.deck-item{background:#fff;border:0.5px solid #d3d1c7;border-radius:12px;padding:12px 14px}
+.deck-header{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.deck-icon{width:36px;height:36px;border-radius:8px;background:#e1f5ee;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.deck-icon i{font-size:18px;color:#0f6e56}
+.deck-info{flex:1;min-width:0}
+.deck-name{font-size:14px;font-weight:500;color:#2c2c2a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.deck-count{font-size:11px;color:#888780;margin-top:2px}
+.deck-del{background:none;border:none;cursor:pointer;color:#b4b2a9;padding:4px;font-size:18px;flex-shrink:0}
+.deck-del:hover{color:#a32d2d}
+
+.resume-banner{background:#faeeda;border:0.5px solid #ef9f27;border-radius:8px;padding:8px 12px;font-size:12px;color:#633806;display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.btn-resume-clear{font-size:11px;color:#854f0b;background:none;border:none;cursor:pointer;text-decoration:underline;white-space:nowrap;margin-left:8px}
+
+.tag-bar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+.tag{font-size:11px;padding:4px 10px;border-radius:20px;border:0.5px solid #d3d1c7;cursor:pointer;background:#f5f5f0;color:#5f5e5a;white-space:nowrap}
+.tag.active{background:#1d9e75;border-color:#1d9e75;color:#fff}
+.tag-ng{border-color:#f09595;color:#a32d2d;background:#fcebeb}
+.tag-ng.active{background:#a32d2d;border-color:#a32d2d;color:#fff}
+
+.progress-mini{display:flex;align-items:center;gap:6px;margin-bottom:8px}
+.bar-wrap{flex:1;height:4px;background:#f1efe8;border-radius:2px}
+.bar-fill{height:4px;background:#1d9e75;border-radius:2px}
+.bar-pct{font-size:11px;color:#888780;min-width:28px;text-align:right}
+
+.start-btn{width:100%;padding:10px;border-radius:8px;border:none;background:#1d9e75;color:#fff;font-size:14px;font-weight:500;cursor:pointer}
+.start-btn:disabled{background:#b4b2a9;cursor:not-allowed}
+.start-btn:active{transform:scale(0.98)}
+
+.empty-msg{text-align:center;color:#b4b2a9;font-size:14px;padding:2rem 0}
+.add-card{background:#fff;border:0.5px solid #d3d1c7;border-radius:12px;padding:1rem;margin-bottom:1rem}
+.add-card h2{font-size:14px;font-weight:500;color:#2c2c2a;margin-bottom:10px}
+.input-row{display:flex;flex-direction:column;gap:8px}
+input[type=text]{padding:8px 10px;border:0.5px solid #b4b2a9;border-radius:8px;font-size:14px;width:100%;background:#fff;color:#2c2c2a}
+.upload-area{border:1.5px dashed #b4b2a9;border-radius:8px;padding:1rem;text-align:center;cursor:pointer;background:#f5f5f0}
+.upload-area:hover{border-color:#888780}
+.upload-area p{font-size:13px;color:#5f5e5a}
+.upload-area input{display:none}
+.selected-file{font-size:12px;color:#0f6e56;margin-top:4px}
+
+.btn{padding:12px 8px;border-radius:8px;border:0.5px solid #b4b2a9;font-size:14px;font-weight:500;cursor:pointer;background:#fff;color:#2c2c2a;width:100%}
+.btn:active{transform:scale(0.98)}
+.btn-primary{background:#1d9e75;border-color:#1d9e75;color:#fff}
+.btn-primary:disabled{background:#b4b2a9;border-color:#b4b2a9;cursor:not-allowed}
+.btn-show{grid-column:1/-1;background:#f1efe8}
+.btn-ok{color:#0f6e56;border-color:#5dcaa5}
+.btn-ng{color:#a32d2d;border-color:#f09595}
+.btn-row{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:4px}
+.btn-sm{width:auto;padding:4px 10px;font-size:12px}
+
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:1rem 0}
+.stat{background:#fff;border-radius:8px;padding:10px 8px;text-align:center}
+.stat-n{font-size:22px;font-weight:500;color:#2c2c2a}
+.stat-l{font-size:11px;color:#888780;margin-top:2px}
+.card{background:#fff;border:0.5px solid #d3d1c7;border-radius:12px;padding:1.5rem 1rem;min-height:160px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;margin:1rem 0}
+.card-num{font-size:11px;color:#b4b2a9;margin-bottom:8px}
+.card-q{font-size:16px;color:#2c2c2a;line-height:1.6;font-weight:500}
+.card-a{font-size:20px;font-weight:500;color:#0f6e56;margin-top:12px;padding-top:12px;border-top:0.5px solid #d3d1c7;width:100%}
+.progress{height:4px;background:#f1efe8;border-radius:2px;margin:8px 0}
+.progress-bar{height:4px;background:#1d9e75;border-radius:2px;transition:width 0.3s}
+.top-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.deck-label{font-size:13px;color:#2c2c2a;font-weight:500}
+.pos-label{font-size:11px;color:#888780;text-align:center;margin-bottom:4px}
+.fin-msg{margin-top:12px;font-size:14px;color:#5f5e5a}
+.mode-badge{font-size:11px;padding:2px 8px;border-radius:20px;background:#fcebeb;color:#a32d2d;margin-left:6px;font-weight:400}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1><i class="ti ti-cards" aria-hidden="true"></i> ランダムくん</h1>
+
+  <div id="sec-list" class="section active">
+    <div id="deck-list" class="deck-list"></div>
+    <div class="add-card">
+      <h2><i class="ti ti-plus" style="font-size:14px;vertical-align:-1px" aria-hidden="true"></i> デッキを追加</h2>
+      <div class="input-row">
+        <input type="text" id="deck-name-input" placeholder="デッキ名（例：理科_植物）">
+        <div class="upload-area" onclick="document.getElementById('csv-input').click()">
+          <p><i class="ti ti-upload" style="font-size:16px;vertical-align:-2px" aria-hidden="true"></i> CSVを選択</p>
+          <p class="selected-file" id="selected-file" style="display:none"></p>
+          <input type="file" id="csv-input" accept=".csv">
+        </div>
+        <button class="btn btn-primary" id="add-btn" onclick="addDeck()" disabled>追加する</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="sec-quiz" class="section">
+    <div class="top-row">
+      <span class="deck-label" id="quiz-deck-name"></span>
+      <button class="btn btn-sm" onclick="backToList()">
+        <i class="ti ti-arrow-left" style="font-size:14px;vertical-align:-2px" aria-hidden="true"></i> 一覧へ
+      </button>
+    </div>
+    <div class="progress"><div class="progress-bar" id="prog-bar"></div></div>
+    <div class="stats">
+      <div class="stat"><div class="stat-n" id="s-total">0</div><div class="stat-l">出題数</div></div>
+      <div class="stat"><div class="stat-n" style="color:#0f6e56" id="s-ok">0</div><div class="stat-l">正解</div></div>
+      <div class="stat"><div class="stat-n" style="color:#a32d2d" id="s-ng">0</div><div class="stat-l">不正解</div></div>
+    </div>
+    <div id="card-area">
+      <div class="pos-label" id="pos-label"></div>
+      <div class="card">
+        <div class="card-num" id="card-num"></div>
+        <div class="card-q" id="card-q"></div>
+        <div class="card-a" id="card-a" style="display:none"></div>
+      </div>
+      <div id="btn-area-before" class="btn-row">
+        <button class="btn btn-show" onclick="showAnswer()">答えを見る</button>
+      </div>
+      <div id="btn-area-after" class="btn-row" style="display:none">
+        <button class="btn btn-ok" onclick="judge(true)"><i class="ti ti-check" aria-hidden="true"></i> 正解</button>
+        <button class="btn btn-ng" onclick="judge(false)"><i class="ti ti-x" aria-hidden="true"></i> 不正解</button>
+      </div>
+    </div>
+    <div id="fin-area" style="display:none">
+      <div class="card">
+        <div class="card-q" style="font-size:18px">全問終了！</div>
+        <div class="fin-msg" id="fin-msg"></div>
+      </div>
+      <div class="btn-row">
+        <button class="btn" onclick="restart('all')">全問やり直し</button>
+        <button class="btn btn-ng" onclick="restart('ng')">不正解のみ</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY='randomkun_decks_v1';
+const SESSION_KEY='randomkun_session_v1';
+let decks=[];
+let currentDeckIdx=-1;
+let questions=[],queue=[],current=null,okCount=0,ngList=[];
+let pendingCSV=null;
+let sessionQueue=[];
+
+function loadDecks(){
+  try{const d=localStorage.getItem(STORAGE_KEY);if(d)decks=JSON.parse(d);}catch(e){decks=[];}
+  renderList();
+}
+
+function saveDecks(){
+  try{localStorage.setItem(STORAGE_KEY,JSON.stringify(decks));}
+  catch(e){alert('保存容量が不足しています。不要なデッキを削除してください。');}
+}
+
+function saveSession(){
+  if(currentDeckIdx<0)return;
+  const session={
+    deckIdx:currentDeckIdx,
+    mode:decks[currentDeckIdx]._mode||'all',
+    queue:queue.map(q=>q.num),
+    answeredNums:questions.filter(q=>!queue.includes(q)&&q!==current).map(q=>q.num),
+    currentNum:current?current.num:null,
+    okCount,
+    ngNums:ngList.map(q=>q.num)
+  };
+  try{localStorage.setItem(SESSION_KEY,JSON.stringify(session));}catch(e){}
+}
+
+function clearSession(){
+  localStorage.removeItem(SESSION_KEY);
+}
+
+function getSession(){
+  try{const s=localStorage.getItem(SESSION_KEY);return s?JSON.parse(s):null;}
+  catch(e){return null;}
+}
+
+function calcStats(deckIdx){
+  const deck=decks[deckIdx];
+  const record=deck.record||{};
+  const total=deck.questions.length;
+  const ok=Object.values(record).filter(v=>v==='ok').length;
+  const ng=Object.values(record).filter(v=>v==='ng').length;
+  const unanswered=total-Object.keys(record).length;
+  return{total,ok,ng,unanswered};
+}
+
+function renderList(){
+  const el=document.getElementById('deck-list');
+  if(decks.length===0){
+    el.innerHTML='<p class="empty-msg">デッキがありません<br>下から追加してください</p>';
+    return;
+  }
+  const session=getSession();
+  el.innerHTML=decks.map((d,i)=>{
+    const s=calcStats(i);
+    const pct=s.total>0?Math.round(s.ok/s.total*100):0;
+    const hasSession=session&&session.deckIdx===i;
+    const remaining=hasSession?(session.queue.length+(session.currentNum?1:0)):0;
+    const resumeBanner=hasSession?`
+      <div class="resume-banner">
+        <span><i class="ti ti-history" style="vertical-align:-2px;margin-right:4px" aria-hidden="true"></i>途中まで回答済み（残り${remaining}問）</span>
+        <button class="btn-resume-clear" onclick="event.stopPropagation();clearSessionAndRender()">リセット</button>
+      </div>`:'' ;
+    return`
+    <div class="deck-item">
+      <div class="deck-header">
+        <div class="deck-icon"><i class="ti ti-notebook" aria-hidden="true"></i></div>
+        <div class="deck-info">
+          <div class="deck-name">${escHtml(d.name)}</div>
+          <div class="deck-count">${s.total}問 ／ 正解率 ${pct}%</div>
+        </div>
+        <button class="deck-del" onclick="deleteDeck(${i})" aria-label="削除"><i class="ti ti-trash" aria-hidden="true"></i></button>
+      </div>
+      <div class="progress-mini">
+        <div class="bar-wrap"><div class="bar-fill" style="width:${pct}%"></div></div>
+        <span class="bar-pct">${pct}%</span>
+      </div>
+      ${resumeBanner}
+      <div class="tag-bar">
+        <span class="tag ${(!d._mode||d._mode==='all')?'active':''}" id="tag-all-${i}" onclick="setMode(${i},'all')">全問 ${s.total}</span>
+        <span class="tag tag-ng ${d._mode==='ng'?'active':''}" id="tag-ng-${i}" onclick="setMode(${i},'ng')">不正解 ${s.ng}</span>
+        <span class="tag ${d._mode==='unanswered'?'active':''}" id="tag-un-${i}" onclick="setMode(${i},'unanswered')">未回答 ${s.unanswered}</span>
+      </div>
+      <div style="display:grid;grid-template-columns:${hasSession?'1fr 1fr':'1fr'};gap:8px">
+        ${hasSession?`<button class="start-btn" style="background:#ba7517" onclick="resumeDeck(${i})"><i class="ti ti-player-play" aria-hidden="true"></i> 続きから</button>`:''}
+        <button class="start-btn" id="start-btn-${i}" onclick="startDeck(${i},false)"><i class="ti ti-refresh" aria-hidden="true"></i> 最初から</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function clearSessionAndRender(){
+  clearSession();
+  renderList();
+}
+
+function setMode(deckIdx,mode){
+  decks[deckIdx]._mode=mode;
+  saveDecks();
+  renderList();
+}
+
+function getQueueForMode(deckIdx,mode){
+  const deck=decks[deckIdx];
+  const record=deck.record||{};
+  if(mode==='ng') return deck.questions.filter(q=>record[q.num]==='ng');
+  if(mode==='unanswered') return deck.questions.filter(q=>!record[q.num]);
+  return deck.questions;
+}
+
+function startDeck(i,resume){
+  const deck=decks[i];
+  currentDeckIdx=i;
+  const mode=deck._mode||'all';
+  const modeLabel=mode==='ng'?'不正解のみ':mode==='unanswered'?'未回答のみ':'全問';
+  document.getElementById('quiz-deck-name').innerHTML=escHtml(deck.name)+(mode!=='all'?`<span class="mode-badge">${modeLabel}</span>`:'');
+
+  const qs=getQueueForMode(i,mode);
+  if(qs.length===0){alert('該当する問題がありません');return;}
+  questions=qs;
+  queue=shuffle([...qs]);
+  okCount=0;ngList=[];
+  clearSession();
+  show('sec-quiz');hide('sec-list');
+  nextQuestion();
+}
+
+function resumeDeck(i){
+  const session=getSession();
+  if(!session||session.deckIdx!==i){startDeck(i,false);return;}
+  const deck=decks[i];
+  currentDeckIdx=i;
+  const mode=session.mode||'all';
+  const modeLabel=mode==='ng'?'不正解のみ':mode==='unanswered'?'未回答のみ':'全問';
+  document.getElementById('quiz-deck-name').innerHTML=escHtml(deck.name)+(mode!=='all'?`<span class="mode-badge">${modeLabel}</span>`:'');
+
+  const allQs=getQueueForMode(i,mode);
+  questions=allQs;
+  const numMap={};
+  allQs.forEach(q=>numMap[q.num]=q);
+  queue=session.queue.map(n=>numMap[n]).filter(Boolean);
+  okCount=session.okCount||0;
+  ngList=(session.ngNums||[]).map(n=>numMap[n]).filter(Boolean);
+
+  show('sec-quiz');hide('sec-list');
+
+  if(session.currentNum&&numMap[session.currentNum]){
+    current=numMap[session.currentNum];
+    renderQuestion();
+  }else{
+    nextQuestion();
+  }
+}
+
+function backToList(){
+  saveSession();
+  show('sec-list');hide('sec-quiz');
+  renderList();
+}
+
+function nextQuestion(){
+  if(queue.length===0){showFinish();return;}
+  current=queue.shift();
+  renderQuestion();
+  saveSession();
+}
+
+function renderQuestion(){
+  const total=questions.length;
+  const done=okCount+ngList.length;
+  document.getElementById('pos-label').textContent=(done+1)+' / '+total+' 問目';
+  document.getElementById('card-num').textContent='No. '+current.num;
+  document.getElementById('card-q').textContent=current.q;
+  document.getElementById('card-a').style.display='none';
+  document.getElementById('card-a').textContent=current.a;
+  document.getElementById('btn-area-before').style.display='grid';
+  document.getElementById('btn-area-after').style.display='none';
+  document.getElementById('card-area').style.display='block';
+  document.getElementById('fin-area').style.display='none';
+  updateProgress();
+}
+
+function showAnswer(){
+  document.getElementById('card-a').style.display='block';
+  document.getElementById('btn-area-before').style.display='none';
+  document.getElementById('btn-area-after').style.display='grid';
+}
+
+function judge(ok){
+  if(!decks[currentDeckIdx].record)decks[currentDeckIdx].record={};
+  decks[currentDeckIdx].record[current.num]=ok?'ok':'ng';
+  saveDecks();
+  if(ok)okCount++;else ngList.push(current);
+  updateStats();
+  nextQuestion();
+}
+
+function updateStats(){
+  document.getElementById('s-total').textContent=questions.length;
+  document.getElementById('s-ok').textContent=okCount;
+  document.getElementById('s-ng').textContent=ngList.length;
+}
+
+function updateProgress(){
+  const done=okCount+ngList.length,total=questions.length;
+  document.getElementById('prog-bar').style.width=(total>0?Math.round(done/total*100):0)+'%';
+  updateStats();
+}
+
+function showFinish(){
+  clearSession();
+  document.getElementById('card-area').style.display='none';
+  document.getElementById('fin-area').style.display='block';
+  const total=questions.length;
+  document.getElementById('fin-msg').textContent='正解 '+okCount+' / '+total+' 問（'+Math.round(okCount/total*100)+'%）';
+  updateProgress();
+}
+
+function restart(mode){
+  clearSession();
+  if(mode==='ng'){
+    if(ngList.length===0){alert('不正解の問題がありません');return;}
+    questions=[...ngList];
+  }
+  queue=shuffle([...questions]);
+  okCount=0;ngList=[];
+  document.getElementById('fin-area').style.display='none';
+  nextQuestion();
+}
+
+function deleteDeck(i){
+  if(!confirm('"'+decks[i].name+'" を削除しますか？'))return;
+  const session=getSession();
+  if(session&&session.deckIdx===i)clearSession();
+  decks.splice(i,1);
+  saveDecks();renderList();
+}
+
+document.getElementById('csv-input').addEventListener('change',function(e){
+  const file=e.target.files[0];
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=function(ev){
+    const parsed=parseCSV(detectAndDecode(ev.target.result));
+    if(!parsed){e.target.value='';return;}
+    pendingCSV=parsed;
+    const sf=document.getElementById('selected-file');
+    sf.textContent=file.name+' ('+parsed.length+'問)';
+    sf.style.display='block';
+    if(!document.getElementById('deck-name-input').value)
+      document.getElementById('deck-name-input').value=file.name.replace(/\.csv$/i,'');
+    checkAddReady();
+  };
+  reader.readAsArrayBuffer(file);
+  e.target.value='';
+});
+
+function detectAndDecode(buffer){
+  const bytes=new Uint8Array(buffer);
+  let isShiftJIS=false;
+  for(let i=0;i<bytes.length-1;i++){
+    const b=bytes[i];
+    if((b>=0x81&&b<=0x9F)||(b>=0xE0&&b<=0xFC)){
+      const b2=bytes[i+1];
+      if((b2>=0x40&&b2<=0x7E)||(b2>=0x80&&b2<=0xFC)){isShiftJIS=true;break;}
+    }
+  }
+  const enc=isShiftJIS?'Shift_JIS':'UTF-8';
+  return new TextDecoder(enc).decode(buffer);
+}
+
+document.getElementById('deck-name-input').addEventListener('input',checkAddReady);
+
+function checkAddReady(){
+  const name=document.getElementById('deck-name-input').value.trim();
+  document.getElementById('add-btn').disabled=!(name&&pendingCSV);
+}
+
+function parseCSV(text){
+  const lines=text.split(/\r?\n/).filter(l=>l.trim());
+  const parsed=[];
+  for(let i=0;i<lines.length;i++){
+    const cols=lines[i].split(',');
+    if(cols.length<3)continue;
+    const num=cols[0].trim(),q=cols[1].trim(),a=cols.slice(2).join(',').trim();
+    if(!q||!a||num==='番号')continue;
+    parsed.push({num,q,a});
+  }
+  if(parsed.length===0){alert('問題が読み込めませんでした。列構成を確認してください。');return null;}
+  return parsed;
+}
+
+function addDeck(){
+  const name=document.getElementById('deck-name-input').value.trim();
+  if(!name||!pendingCSV)return;
+  decks.push({name,questions:pendingCSV,record:{},_mode:'all'});
+  saveDecks();renderList();
+  document.getElementById('deck-name-input').value='';
+  document.getElementById('selected-file').style.display='none';
+  pendingCSV=null;
+  document.getElementById('add-btn').disabled=true;
+}
+
+function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+function show(id){document.getElementById(id).classList.add('active');}
+function hide(id){document.getElementById(id).classList.remove('active');}
+
+loadDecks();
+</script>
+</body>
+</html>
