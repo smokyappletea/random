@@ -13,15 +13,26 @@ h1{font-size:18px;font-weight:500;color:#2c2c2a;text-align:center;margin:1rem 0 
 .section{display:none}.section.active{display:block}
 
 .deck-list{display:flex;flex-direction:column;gap:8px;margin-bottom:1rem}
-.deck-item{background:#fff;border:0.5px solid #d3d1c7;border-radius:12px;padding:12px 14px}
+.deck-item{background:#fff;border:0.5px solid #d3d1c7;border-radius:12px;padding:12px 14px;transition:opacity 0.2s}
+.deck-item.dragging{opacity:0.4}
+.deck-item.drag-over{border:1.5px dashed #1d9e75}
+.deck-item.archived{background:#f5f5f0;border-color:#e0ded8}
+
 .deck-header{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.drag-handle{color:#b4b2a9;cursor:grab;font-size:20px;flex-shrink:0;touch-action:none}
+.drag-handle:active{cursor:grabbing}
 .deck-icon{width:36px;height:36px;border-radius:8px;background:#e1f5ee;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .deck-icon i{font-size:18px;color:#0f6e56}
+.deck-icon.archived-icon{background:#eeede8}
+.deck-icon.archived-icon i{color:#b4b2a9}
 .deck-info{flex:1;min-width:0}
 .deck-name{font-size:14px;font-weight:500;color:#2c2c2a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.deck-name.archived{color:#888780}
 .deck-count{font-size:11px;color:#888780;margin-top:2px}
-.deck-del{background:none;border:none;cursor:pointer;color:#b4b2a9;padding:4px;font-size:18px;flex-shrink:0}
-.deck-del:hover{color:#a32d2d}
+.deck-actions{display:flex;gap:2px;flex-shrink:0}
+.deck-btn{background:none;border:none;cursor:pointer;color:#b4b2a9;padding:4px;font-size:18px}
+.deck-btn:hover{color:#5f5e5a}
+.deck-btn.del:hover{color:#a32d2d}
 
 .resume-banner{background:#faeeda;border:0.5px solid #ef9f27;border-radius:8px;padding:8px 12px;font-size:12px;color:#633806;display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
 .btn-resume-clear{font-size:11px;color:#854f0b;background:none;border:none;cursor:pointer;text-decoration:underline;white-space:nowrap;margin-left:8px}
@@ -40,6 +51,9 @@ h1{font-size:18px;font-weight:500;color:#2c2c2a;text-align:center;margin:1rem 0 
 .start-btn{width:100%;padding:10px;border-radius:8px;border:none;background:#1d9e75;color:#fff;font-size:14px;font-weight:500;cursor:pointer}
 .start-btn:disabled{background:#b4b2a9;cursor:not-allowed}
 .start-btn:active{transform:scale(0.98)}
+
+.archive-toggle{background:none;border:none;font-size:12px;color:#888780;cursor:pointer;display:flex;align-items:center;gap:4px;margin-bottom:8px;padding:0}
+.archive-toggle:hover{color:#5f5e5a}
 
 .empty-msg{text-align:center;color:#b4b2a9;font-size:14px;padding:2rem 0}
 .add-card{background:#fff;border:0.5px solid #d3d1c7;border-radius:12px;padding:1rem;margin-bottom:1rem}
@@ -147,7 +161,8 @@ let decks=[];
 let currentDeckIdx=-1;
 let questions=[],queue=[],current=null,okCount=0,ngList=[];
 let pendingCSV=null;
-let sessionQueue=[];
+let showArchived=false;
+let dragSrcIdx=null;
 
 function loadDecks(){
   try{const d=localStorage.getItem(STORAGE_KEY);if(d)decks=JSON.parse(d);}catch(e){decks=[];}
@@ -165,7 +180,6 @@ function saveSession(){
     deckIdx:currentDeckIdx,
     mode:decks[currentDeckIdx]._mode||'all',
     queue:queue.map(q=>q.num),
-    answeredNums:questions.filter(q=>!queue.includes(q)&&q!==current).map(q=>q.num),
     currentNum:current?current.num:null,
     okCount,
     ngNums:ngList.map(q=>q.num)
@@ -173,13 +187,9 @@ function saveSession(){
   try{localStorage.setItem(SESSION_KEY,JSON.stringify(session));}catch(e){}
 }
 
-function clearSession(){
-  localStorage.removeItem(SESSION_KEY);
-}
-
+function clearSession(){localStorage.removeItem(SESSION_KEY);}
 function getSession(){
-  try{const s=localStorage.getItem(SESSION_KEY);return s?JSON.parse(s):null;}
-  catch(e){return null;}
+  try{const s=localStorage.getItem(SESSION_KEY);return s?JSON.parse(s):null;}catch(e){return null;}
 }
 
 function calcStats(deckIdx){
@@ -194,58 +204,185 @@ function calcStats(deckIdx){
 
 function renderList(){
   const el=document.getElementById('deck-list');
-  if(decks.length===0){
-    el.innerHTML='<p class="empty-msg">デッキがありません<br>下から追加してください</p>';
-    return;
-  }
   const session=getSession();
-  el.innerHTML=decks.map((d,i)=>{
-    const s=calcStats(i);
-    const pct=s.total>0?Math.round(s.ok/s.total*100):0;
-    const hasSession=session&&session.deckIdx===i;
-    const remaining=hasSession?(session.queue.length+(session.currentNum?1:0)):0;
-    const resumeBanner=hasSession?`
-      <div class="resume-banner">
-        <span><i class="ti ti-history" style="vertical-align:-2px;margin-right:4px" aria-hidden="true"></i>途中まで回答済み（残り${remaining}問）</span>
-        <button class="btn-resume-clear" onclick="event.stopPropagation();clearSessionAndRender()">リセット</button>
-      </div>`:'' ;
-    return`
-    <div class="deck-item">
-      <div class="deck-header">
-        <div class="deck-icon"><i class="ti ti-notebook" aria-hidden="true"></i></div>
-        <div class="deck-info">
-          <div class="deck-name">${escHtml(d.name)}</div>
-          <div class="deck-count">${s.total}問 ／ 正解率 ${pct}%</div>
-        </div>
-        <button class="deck-del" onclick="deleteDeck(${i})" aria-label="削除"><i class="ti ti-trash" aria-hidden="true"></i></button>
-      </div>
-      <div class="progress-mini">
-        <div class="bar-wrap"><div class="bar-fill" style="width:${pct}%"></div></div>
-        <span class="bar-pct">${pct}%</span>
-      </div>
-      ${resumeBanner}
-      <div class="tag-bar">
-        <span class="tag ${(!d._mode||d._mode==='all')?'active':''}" id="tag-all-${i}" onclick="setMode(${i},'all')">全問 ${s.total}</span>
-        <span class="tag tag-ng ${d._mode==='ng'?'active':''}" id="tag-ng-${i}" onclick="setMode(${i},'ng')">不正解 ${s.ng}</span>
-        <span class="tag ${d._mode==='unanswered'?'active':''}" id="tag-un-${i}" onclick="setMode(${i},'unanswered')">未回答 ${s.unanswered}</span>
-      </div>
-      <div style="display:grid;grid-template-columns:${hasSession?'1fr 1fr':'1fr'};gap:8px">
-        ${hasSession?`<button class="start-btn" style="background:#ba7517" onclick="resumeDeck(${i})"><i class="ti ti-player-play" aria-hidden="true"></i> 続きから</button>`:''}
-        <button class="start-btn" id="start-btn-${i}" onclick="startDeck(${i},false)"><i class="ti ti-refresh" aria-hidden="true"></i> 最初から</button>
-      </div>
-    </div>`;
-  }).join('');
+  const activeDecks=decks.filter((_,i)=>!decks[i].archived);
+  const archivedDecks=decks.filter((_,i)=>decks[i].archived);
+
+  let html='';
+  if(activeDecks.length===0 && archivedDecks.length===0){
+    html='<p class="empty-msg">デッキがありません<br>下から追加してください</p>';
+  } else {
+    decks.forEach((d,i)=>{
+      if(d.archived && !showArchived) return;
+      html+=renderDeckItem(d,i,session);
+    });
+    if(archivedDecks.length>0){
+      html+=`<button class="archive-toggle" onclick="toggleArchived()">
+        <i class="ti ti-${showArchived?'eye-off':'archive'}" aria-hidden="true"></i>
+        ${showArchived?'アーカイブを隠す':'アーカイブを表示（'+archivedDecks.length+'）'}
+      </button>`;
+    }
+  }
+  el.innerHTML=html;
+  initDragDrop();
 }
 
-function clearSessionAndRender(){
-  clearSession();
+function renderDeckItem(d,i,session){
+  const s=calcStats(i);
+  const pct=s.total>0?Math.round(s.ok/s.total*100):0;
+  const hasSession=session&&session.deckIdx===i;
+  const remaining=hasSession?(session.queue.length+(session.currentNum?1:0)):0;
+  const isArchived=!!d.archived;
+
+  const resumeBanner=hasSession&&!isArchived?`
+    <div class="resume-banner">
+      <span><i class="ti ti-history" style="vertical-align:-2px;margin-right:4px" aria-hidden="true"></i>途中まで回答済み（残り${remaining}問）</span>
+      <button class="btn-resume-clear" onclick="event.stopPropagation();clearSessionAndRender()">リセット</button>
+    </div>`:'';
+
+  const tagBar=!isArchived?`
+    <div class="tag-bar">
+      <span class="tag ${(!d._mode||d._mode==='all')?'active':''}" onclick="setMode(${i},'all')">全問 ${s.total}</span>
+      <span class="tag tag-ng ${d._mode==='ng'?'active':''}" onclick="setMode(${i},'ng')">不正解 ${s.ng}</span>
+      <span class="tag ${d._mode==='unanswered'?'active':''}" onclick="setMode(${i},'unanswered')">未回答 ${s.unanswered}</span>
+    </div>`:'';
+
+  const startBtns=!isArchived?`
+    <div style="display:grid;grid-template-columns:${hasSession?'1fr 1fr':'1fr'};gap:8px">
+      ${hasSession?`<button class="start-btn" style="background:#ba7517" onclick="resumeDeck(${i})"><i class="ti ti-player-play" aria-hidden="true"></i> 続きから</button>`:''}
+      <button class="start-btn" id="start-btn-${i}" onclick="startDeck(${i})"><i class="ti ti-refresh" aria-hidden="true"></i> 最初から</button>
+    </div>`:'<p style="font-size:12px;color:#b4b2a9;text-align:center">アーカイブ済み</p>';
+
+  return`<div class="deck-item${isArchived?' archived':''}" data-idx="${i}" draggable="${!isArchived}">
+    <div class="deck-header">
+      ${!isArchived?'<span class="drag-handle" title="ドラッグで並び替え"><i class="ti ti-grip-vertical" aria-hidden="true"></i></span>':'<span style="width:20px"></span>'}
+      <div class="deck-icon${isArchived?' archived-icon':''}"><i class="ti ti-notebook" aria-hidden="true"></i></div>
+      <div class="deck-info">
+        <div class="deck-name${isArchived?' archived':''}">${escHtml(d.name)}</div>
+        <div class="deck-count">${s.total}問 ／ 正解率 ${pct}%</div>
+      </div>
+      <div class="deck-actions">
+        ${s.ng>0?`<button class="deck-btn" onclick="downloadNgCSV(${i})" title="不正解をCSVダウンロード" style="color:#a32d2d"><i class="ti ti-download" aria-hidden="true"></i></button>`:''}
+        <button class="deck-btn" onclick="toggleArchive(${i})" title="${isArchived?'アーカイブ解除':'アーカイブ'}">
+          <i class="ti ti-${isArchived?'arrow-back-up':'archive'}" aria-hidden="true"></i>
+        </button>
+        <button class="deck-btn del" onclick="deleteDeck(${i})" title="削除">
+          <i class="ti ti-trash" aria-hidden="true"></i>
+        </button>
+      </div>
+    </div>
+    ${!isArchived?`<div class="progress-mini"><div class="bar-wrap"><div class="bar-fill" style="width:${pct}%"></div></div><span class="bar-pct">${pct}%</span></div>`:''}
+    ${resumeBanner}${tagBar}${startBtns}
+  </div>`;
+}
+
+function downloadNgCSV(i){
+  const deck=decks[i];
+  const record=deck.record||{};
+  const ngQs=deck.questions.filter(q=>record[q.num]==='ng');
+  if(ngQs.length===0){alert('不正解の問題がありません');return;}
+  const bom='\uFEFF';
+  const rows=ngQs.map(q=>[q.num,q.q,q.a].map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(','));
+  const csv=bom+'番号,問題,答え\n'+rows.join('\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download=deck.name+'_不正解.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function toggleArchived(){
+  showArchived=!showArchived;
   renderList();
+}
+
+function toggleArchive(i){
+  decks[i].archived=!decks[i].archived;
+  saveDecks();
+  renderList();
+}
+
+/* --- Drag & Drop --- */
+function initDragDrop(){
+  const items=document.querySelectorAll('.deck-item[draggable="true"]');
+  items.forEach(item=>{
+    item.addEventListener('dragstart',e=>{
+      dragSrcIdx=parseInt(item.dataset.idx);
+      item.classList.add('dragging');
+      e.dataTransfer.effectAllowed='move';
+    });
+    item.addEventListener('dragend',()=>{
+      item.classList.remove('dragging');
+      document.querySelectorAll('.deck-item').forEach(el=>el.classList.remove('drag-over'));
+    });
+    item.addEventListener('dragover',e=>{
+      e.preventDefault();
+      e.dataTransfer.dropEffect='move';
+      document.querySelectorAll('.deck-item').forEach(el=>el.classList.remove('drag-over'));
+      item.classList.add('drag-over');
+    });
+    item.addEventListener('drop',e=>{
+      e.preventDefault();
+      const targetIdx=parseInt(item.dataset.idx);
+      if(dragSrcIdx===null||dragSrcIdx===targetIdx)return;
+      const moved=decks.splice(dragSrcIdx,1)[0];
+      decks.splice(targetIdx,0,moved);
+      dragSrcIdx=null;
+      saveDecks();
+      renderList();
+    });
+  });
+
+  /* タッチ対応（スマホ） */
+  let touchSrcIdx=null,ghost=null,touchOffsetY=0;
+  items.forEach(item=>{
+    item.addEventListener('touchstart',e=>{
+      if(!e.target.closest('.drag-handle'))return;
+      touchSrcIdx=parseInt(item.dataset.idx);
+      const rect=item.getBoundingClientRect();
+      touchOffsetY=e.touches[0].clientY-rect.top;
+      ghost=item.cloneNode(true);
+      ghost.style.cssText=`position:fixed;left:${rect.left}px;top:${rect.top}px;width:${rect.width}px;opacity:0.7;pointer-events:none;z-index:9999;border-radius:12px;background:#fff;box-shadow:0 4px 16px rgba(0,0,0,0.15)`;
+      document.body.appendChild(ghost);
+      item.classList.add('dragging');
+    },{passive:true});
+    item.addEventListener('touchmove',e=>{
+      if(touchSrcIdx===null)return;
+      e.preventDefault();
+      const y=e.touches[0].clientY;
+      if(ghost)ghost.style.top=(y-touchOffsetY)+'px';
+      document.querySelectorAll('.deck-item[draggable="true"]').forEach(el=>{
+        const r=el.getBoundingClientRect();
+        if(y>=r.top&&y<=r.bottom) el.classList.add('drag-over');
+        else el.classList.remove('drag-over');
+      });
+    },{passive:false});
+    item.addEventListener('touchend',e=>{
+      if(touchSrcIdx===null)return;
+      if(ghost){ghost.remove();ghost=null;}
+      const y=e.changedTouches[0].clientY;
+      let targetIdx=null;
+      document.querySelectorAll('.deck-item[draggable="true"]').forEach(el=>{
+        const r=el.getBoundingClientRect();
+        if(y>=r.top&&y<=r.bottom) targetIdx=parseInt(el.dataset.idx);
+        el.classList.remove('drag-over','dragging');
+      });
+      if(targetIdx!==null&&targetIdx!==touchSrcIdx){
+        const moved=decks.splice(touchSrcIdx,1)[0];
+        decks.splice(targetIdx,0,moved);
+        saveDecks();
+        renderList();
+      }
+      touchSrcIdx=null;
+    },{passive:true});
+  });
 }
 
 function setMode(deckIdx,mode){
   decks[deckIdx]._mode=mode;
-  saveDecks();
-  renderList();
+  saveDecks();renderList();
 }
 
 function getQueueForMode(deckIdx,mode){
@@ -256,13 +393,12 @@ function getQueueForMode(deckIdx,mode){
   return deck.questions;
 }
 
-function startDeck(i,resume){
+function startDeck(i){
   const deck=decks[i];
   currentDeckIdx=i;
   const mode=deck._mode||'all';
-  const modeLabel=mode==='ng'?'不正解のみ':mode==='unanswered'?'未回答のみ':'全問';
-  document.getElementById('quiz-deck-name').innerHTML=escHtml(deck.name)+(mode!=='all'?`<span class="mode-badge">${modeLabel}</span>`:'');
-
+  const modeLabel=mode==='ng'?'不正解のみ':mode==='unanswered'?'未回答のみ':'';
+  document.getElementById('quiz-deck-name').innerHTML=escHtml(deck.name)+(modeLabel?`<span class="mode-badge">${modeLabel}</span>`:'');
   const qs=getQueueForMode(i,mode);
   if(qs.length===0){alert('該当する問題がありません');return;}
   questions=qs;
@@ -275,48 +411,38 @@ function startDeck(i,resume){
 
 function resumeDeck(i){
   const session=getSession();
-  if(!session||session.deckIdx!==i){startDeck(i,false);return;}
+  if(!session||session.deckIdx!==i){startDeck(i);return;}
   const deck=decks[i];
   currentDeckIdx=i;
   const mode=session.mode||'all';
-  const modeLabel=mode==='ng'?'不正解のみ':mode==='unanswered'?'未回答のみ':'全問';
-  document.getElementById('quiz-deck-name').innerHTML=escHtml(deck.name)+(mode!=='all'?`<span class="mode-badge">${modeLabel}</span>`:'');
-
+  const modeLabel=mode==='ng'?'不正解のみ':mode==='unanswered'?'未回答のみ':'';
+  document.getElementById('quiz-deck-name').innerHTML=escHtml(deck.name)+(modeLabel?`<span class="mode-badge">${modeLabel}</span>`:'');
   const allQs=getQueueForMode(i,mode);
   questions=allQs;
-  const numMap={};
-  allQs.forEach(q=>numMap[q.num]=q);
+  const numMap={};allQs.forEach(q=>numMap[q.num]=q);
   queue=session.queue.map(n=>numMap[n]).filter(Boolean);
   okCount=session.okCount||0;
   ngList=(session.ngNums||[]).map(n=>numMap[n]).filter(Boolean);
-
   show('sec-quiz');hide('sec-list');
-
   if(session.currentNum&&numMap[session.currentNum]){
-    current=numMap[session.currentNum];
-    renderQuestion();
-  }else{
-    nextQuestion();
-  }
+    current=numMap[session.currentNum];renderQuestion();
+  }else{nextQuestion();}
 }
 
+function clearSessionAndRender(){clearSession();renderList();}
+
 function backToList(){
-  saveSession();
-  show('sec-list');hide('sec-quiz');
-  renderList();
+  saveSession();show('sec-list');hide('sec-quiz');renderList();
 }
 
 function nextQuestion(){
   if(queue.length===0){showFinish();return;}
-  current=queue.shift();
-  renderQuestion();
-  saveSession();
+  current=queue.shift();renderQuestion();saveSession();
 }
 
 function renderQuestion(){
-  const total=questions.length;
   const done=okCount+ngList.length;
-  document.getElementById('pos-label').textContent=(done+1)+' / '+total+' 問目';
+  document.getElementById('pos-label').textContent=(done+1)+' / '+questions.length+' 問目';
   document.getElementById('card-num').textContent='No. '+current.num;
   document.getElementById('card-q').textContent=current.q;
   document.getElementById('card-a').style.display='none';
@@ -339,8 +465,7 @@ function judge(ok){
   decks[currentDeckIdx].record[current.num]=ok?'ok':'ng';
   saveDecks();
   if(ok)okCount++;else ngList.push(current);
-  updateStats();
-  nextQuestion();
+  updateStats();nextQuestion();
 }
 
 function updateStats(){
@@ -370,8 +495,7 @@ function restart(mode){
     if(ngList.length===0){alert('不正解の問題がありません');return;}
     questions=[...ngList];
   }
-  queue=shuffle([...questions]);
-  okCount=0;ngList=[];
+  queue=shuffle([...questions]);okCount=0;ngList=[];
   document.getElementById('fin-area').style.display='none';
   nextQuestion();
 }
@@ -380,8 +504,7 @@ function deleteDeck(i){
   if(!confirm('"'+decks[i].name+'" を削除しますか？'))return;
   const session=getSession();
   if(session&&session.deckIdx===i)clearSession();
-  decks.splice(i,1);
-  saveDecks();renderList();
+  decks.splice(i,1);saveDecks();renderList();
 }
 
 document.getElementById('csv-input').addEventListener('change',function(e){
@@ -413,8 +536,7 @@ function detectAndDecode(buffer){
       if((b2>=0x40&&b2<=0x7E)||(b2>=0x80&&b2<=0xFC)){isShiftJIS=true;break;}
     }
   }
-  const enc=isShiftJIS?'Shift_JIS':'UTF-8';
-  return new TextDecoder(enc).decode(buffer);
+  return new TextDecoder(isShiftJIS?'Shift_JIS':'UTF-8').decode(buffer);
 }
 
 document.getElementById('deck-name-input').addEventListener('input',checkAddReady);
@@ -441,7 +563,7 @@ function parseCSV(text){
 function addDeck(){
   const name=document.getElementById('deck-name-input').value.trim();
   if(!name||!pendingCSV)return;
-  decks.push({name,questions:pendingCSV,record:{},_mode:'all'});
+  decks.push({name,questions:pendingCSV,record:{},_mode:'all',archived:false});
   saveDecks();renderList();
   document.getElementById('deck-name-input').value='';
   document.getElementById('selected-file').style.display='none';
