@@ -91,6 +91,12 @@ input[type=text]{padding:8px 10px;border:0.5px solid #b4b2a9;border-radius:8px;f
 .pos-label{font-size:11px;color:#888780;text-align:center;margin-bottom:4px}
 .fin-msg{margin-top:12px;font-size:14px;color:#5f5e5a}
 .mode-badge{font-size:11px;padding:2px 8px;border-radius:20px;background:#fcebeb;color:#a32d2d;margin-left:6px;font-weight:400}
+.btn-flash{color:#b07d00;border-color:#f0cb5a;background:#fefae8}
+.btn-think{color:#1a6a8a;border-color:#7dcce8;background:#e8f7fc}
+.btn-ng2{color:#a05070;border-color:#f0a8c0;background:#fef0f4}
+.btn-row-3{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:4px}
+.challenge-badge{font-size:11px;padding:2px 8px;border-radius:20px;background:#e8f0fe;color:#1a56c4;margin-left:6px;font-weight:400}
+.challenge-label{font-size:11px;color:#888780;text-align:center;margin-bottom:2px}
 </style>
 </head>
 <body>
@@ -127,6 +133,7 @@ input[type=text]{padding:8px 10px;border:0.5px solid #b4b2a9;border-radius:8px;f
       <div class="stat"><div class="stat-n" style="color:#a32d2d" id="s-ng">0</div><div class="stat-l">不正解</div></div>
     </div>
     <div id="card-area">
+      <div class="challenge-label" id="challenge-label"></div>
       <div class="pos-label" id="pos-label"></div>
       <div class="card">
         <div class="card-num" id="card-num"></div>
@@ -136,9 +143,10 @@ input[type=text]{padding:8px 10px;border:0.5px solid #b4b2a9;border-radius:8px;f
       <div id="btn-area-before" class="btn-row">
         <button class="btn btn-show" onclick="showAnswer()">答えを見る</button>
       </div>
-      <div id="btn-area-after" class="btn-row" style="display:none">
-        <button class="btn btn-ok" onclick="judge(true)"><i class="ti ti-check" aria-hidden="true"></i> 正解</button>
-        <button class="btn btn-ng" onclick="judge(false)"><i class="ti ti-x" aria-hidden="true"></i> 不正解</button>
+      <div id="btn-area-after" class="btn-row-3" style="display:none">
+        <button class="btn btn-flash" onclick="judge('flash')">⚡ 秒で撃破</button>
+        <button class="btn btn-think" onclick="judge('think')">○ 思い出しながら正解</button>
+        <button class="btn btn-ng2" onclick="judge('ng')"><i class="ti ti-x" aria-hidden="true"></i> 不正解</button>
       </div>
     </div>
     <div id="fin-area" style="display:none">
@@ -146,10 +154,7 @@ input[type=text]{padding:8px 10px;border:0.5px solid #b4b2a9;border-radius:8px;f
         <div class="card-q" style="font-size:18px">全問終了！</div>
         <div class="fin-msg" id="fin-msg"></div>
       </div>
-      <div class="btn-row">
-        <button class="btn" onclick="restart('all')">全問やり直し</button>
-        <button class="btn btn-ng" onclick="restart('ng')">不正解のみ</button>
-      </div>
+      <div id="fin-btn-area" class="btn-row"></div>
     </div>
   </div>
 </div>
@@ -243,7 +248,7 @@ function renderDeckItem(d,i,session){
   const tagBar=!isArchived?`
     <div class="tag-bar">
       <span class="tag ${(!d._mode||d._mode==='all')?'active':''}" onclick="setMode(${i},'all')">全問 ${s.total}</span>
-      <span class="tag tag-ng ${d._mode==='ng'?'active':''}" onclick="setMode(${i},'ng')">不正解 ${s.ng}</span>
+      <span class="tag tag-ng ${d._mode==='ng'?'active':''}" onclick="setMode(${i},'ng')">もう一度 ${s.ng}</span>
       <span class="tag ${d._mode==='unanswered'?'active':''}" onclick="setMode(${i},'unanswered')">未回答 ${s.unanswered}</span>
     </div>`:'';
 
@@ -259,7 +264,7 @@ function renderDeckItem(d,i,session){
       <div class="deck-icon${isArchived?' archived-icon':''}"><i class="ti ti-notebook" aria-hidden="true"></i></div>
       <div class="deck-info">
         <div class="deck-name${isArchived?' archived':''}">${escHtml(d.name)}</div>
-        <div class="deck-count">${s.total}問 ／ 正解率 ${pct}%</div>
+        <div class="deck-count">${s.total}問 ／ 正解率 ${pct}% ／ ${d.challengeCount||0}回チャレンジ</div>
       </div>
       <div class="deck-actions">
         ${s.ng>0?`<button class="deck-btn" onclick="downloadNgCSV(${i})" title="不正解をCSVダウンロード" style="color:#a32d2d"><i class="ti ti-download" aria-hidden="true"></i></button>`:''}
@@ -398,12 +403,16 @@ function startDeck(i){
   currentDeckIdx=i;
   const mode=deck._mode||'all';
   const modeLabel=mode==='ng'?'不正解のみ':mode==='unanswered'?'未回答のみ':'';
-  document.getElementById('quiz-deck-name').innerHTML=escHtml(deck.name)+(modeLabel?`<span class="mode-badge">${modeLabel}</span>`:'');
+  const challengeNum=(deck.challengeCount||0)+1;
+  document.getElementById('quiz-deck-name').innerHTML=escHtml(deck.name)+(modeLabel?`<span class="mode-badge">${modeLabel}</span>`:'')+`<span class="challenge-badge">${challengeNum}回目</span>`;
   const qs=getQueueForMode(i,mode);
   if(qs.length===0){alert('該当する問題がありません');return;}
   questions=qs;
   queue=shuffle([...qs]);
   okCount=0;ngList=[];
+  if(!decks[i].challengeCount)decks[i].challengeCount=0;
+  decks[i].challengeCount++;
+  saveDecks();
   clearSession();
   show('sec-quiz');hide('sec-list');
   nextQuestion();
@@ -443,6 +452,8 @@ function nextQuestion(){
 function renderQuestion(){
   const done=okCount+ngList.length;
   document.getElementById('pos-label').textContent=(done+1)+' / '+questions.length+' 問目';
+  const cl=document.getElementById('challenge-label');
+  if(cl&&currentDeckIdx>=0) cl.textContent=(decks[currentDeckIdx].challengeCount||1)+'回目のチャレンジ';
   document.getElementById('card-num').textContent='No. '+current.num;
   document.getElementById('card-q').textContent=current.q;
   document.getElementById('card-a').style.display='none';
@@ -460,11 +471,13 @@ function showAnswer(){
   document.getElementById('btn-area-after').style.display='grid';
 }
 
-function judge(ok){
+function judge(type){
   if(!decks[currentDeckIdx].record)decks[currentDeckIdx].record={};
-  decks[currentDeckIdx].record[current.num]=ok?'ok':'ng';
+  const isOk=(type==='flash');
+  const isNg=(type==='ng'||type==='think');
+  decks[currentDeckIdx].record[current.num]=isOk?'ok':'ng';
   saveDecks();
-  if(ok)okCount++;else ngList.push(current);
+  if(isOk)okCount++;else ngList.push(current);
   updateStats();nextQuestion();
 }
 
@@ -485,7 +498,15 @@ function showFinish(){
   document.getElementById('card-area').style.display='none';
   document.getElementById('fin-area').style.display='block';
   const total=questions.length;
-  document.getElementById('fin-msg').textContent='正解 '+okCount+' / '+total+' 問（'+Math.round(okCount/total*100)+'%）';
+  document.getElementById('fin-msg').textContent='⚡秒で撃破 '+okCount+' / '+total+' 問（'+Math.round(okCount/total*100)+'%）';
+  const finBtn=document.getElementById('fin-btn-area');
+  if(ngList.length>0){
+    finBtn.className='btn-row';
+    finBtn.innerHTML='<button class="btn btn-primary" onclick="restart(\'all\')"><i class="ti ti-refresh" aria-hidden="true"></i> 最初から</button><button class="btn btn-ng2" onclick="restart(\'ng\')"><i class="ti ti-x" aria-hidden="true"></i> 不正解のみ（'+ngList.length+'問）</button>';
+  }else{
+    finBtn.className='';
+    finBtn.innerHTML='<button class="btn btn-primary" style="margin-top:8px" onclick="restart(\'all\')"><i class="ti ti-refresh" aria-hidden="true"></i> 最初から</button>';
+  }
   updateProgress();
 }
 
@@ -494,6 +515,13 @@ function restart(mode){
   if(mode==='ng'){
     if(ngList.length===0){alert('不正解の問題がありません');return;}
     questions=[...ngList];
+  } else {
+    questions=getQueueForMode(currentDeckIdx,decks[currentDeckIdx]._mode||'all');
+    if(!decks[currentDeckIdx].challengeCount)decks[currentDeckIdx].challengeCount=0;
+    decks[currentDeckIdx].challengeCount++;
+    saveDecks();
+    const cl=document.getElementById('challenge-label');
+    if(cl) cl.textContent=decks[currentDeckIdx].challengeCount+'回目のチャレンジ';
   }
   queue=shuffle([...questions]);okCount=0;ngList=[];
   document.getElementById('fin-area').style.display='none';
