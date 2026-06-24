@@ -41,6 +41,11 @@ h1{font-size:18px;font-weight:500;color:#2c2c2a;text-align:center;margin:1rem 0 
 .tag{font-size:11px;padding:4px 10px;border-radius:20px;border:0.5px solid #d3d1c7;cursor:pointer;background:#f5f5f0;color:#5f5e5a;white-space:nowrap}
 .tag.active{background:#1d9e75;border-color:#1d9e75;color:#fff}
 .tag-ng{border-color:#f09595;color:#a32d2d;background:#fcebeb}
+.tag-learn{border-color:#5dcaa5;color:#0f6e56;background:#e1f5ee}
+.tag-learn.active{background:#0f6e56;border-color:#0f6e56;color:#fff}
+.tag-flash{border-color:#f0cb5a;color:#b07d00;background:#fefae8}
+.tag-divider{font-size:14px;color:#b4b2a9;display:flex;align-items:center;padding:0 2px}
+.tag-flash.active{background:#b07d00;border-color:#b07d00;color:#fff}
 .tag-ng.active{background:#a32d2d;border-color:#a32d2d;color:#fff}
 
 .progress-mini{display:flex;align-items:center;gap:6px;margin-bottom:8px}
@@ -200,11 +205,14 @@ function getSession(){
 function calcStats(deckIdx){
   const deck=decks[deckIdx];
   const record=deck.record||{};
+  const firstFlash=deck.firstFlash||{};
   const total=deck.questions.length;
   const ok=Object.values(record).filter(v=>v==='ok').length;
   const ng=Object.values(record).filter(v=>v==='ng').length;
   const unanswered=total-Object.keys(record).length;
-  return{total,ok,ng,unanswered};
+  const flashCount=Object.keys(firstFlash).length;
+  const learnAll=total-flashCount;
+  return{total,ok,ng,unanswered,flashCount,learnAll};
 }
 
 function renderList(){
@@ -245,10 +253,14 @@ function renderDeckItem(d,i,session){
       <button class="btn-resume-clear" onclick="event.stopPropagation();clearSessionAndRender()">リセット</button>
     </div>`:'';
 
+  const hasFlash=(s.flashCount>0);
   const tagBar=!isArchived?`
     <div class="tag-bar">
       <span class="tag ${(!d._mode||d._mode==='all')?'active':''}" onclick="setMode(${i},'all')">全問 ${s.total}</span>
-      <span class="tag tag-ng ${d._mode==='ng'?'active':''}" onclick="setMode(${i},'ng')">もう一度 ${s.ng}</span>
+      ${hasFlash?`<span class="tag tag-flash ${d._mode==='flash'?'active':''}" onclick="setMode(${i},'flash')">初回撃破 ${s.flashCount}</span>`:''}
+      ${hasFlash?`<span class="tag tag-learn ${d._mode==='learn'?'active':''}" onclick="setMode(${i},'learn')">暗記用 ${s.learnAll}</span>`:''}
+      <span class="tag-divider">｜</span>
+      <span class="tag tag-ng ${d._mode==='ng'?'active':''}" onclick="setMode(${i},'ng')">あとこれだけ ${s.ng}</span>
       <span class="tag ${d._mode==='unanswered'?'active':''}" onclick="setMode(${i},'unanswered')">未回答 ${s.unanswered}</span>
     </div>`:'';
 
@@ -264,7 +276,7 @@ function renderDeckItem(d,i,session){
       <div class="deck-icon${isArchived?' archived-icon':''}"><i class="ti ti-notebook" aria-hidden="true"></i></div>
       <div class="deck-info">
         <div class="deck-name${isArchived?' archived':''}">${escHtml(d.name)}</div>
-        <div class="deck-count">${s.total}問 ／ 正解率 ${pct}% ／ ${d.challengeCount||0}回チャレンジ</div>
+        <div class="deck-count">${s.total}問 ／ ${d.challengeCount||0}回チャレンジ ／ 初回撃破 ${s.flashCount}問</div>
       </div>
       <div class="deck-actions">
         ${s.ng>0?`<button class="deck-btn" onclick="downloadNgCSV(${i})" title="不正解をCSVダウンロード" style="color:#a32d2d"><i class="ti ti-download" aria-hidden="true"></i></button>`:''}
@@ -393,8 +405,11 @@ function setMode(deckIdx,mode){
 function getQueueForMode(deckIdx,mode){
   const deck=decks[deckIdx];
   const record=deck.record||{};
+  const firstFlash=deck.firstFlash||{};
   if(mode==='ng') return deck.questions.filter(q=>record[q.num]==='ng');
   if(mode==='unanswered') return deck.questions.filter(q=>!record[q.num]);
+  if(mode==='learn') return deck.questions.filter(q=>!firstFlash[q.num]);
+  if(mode==='flash') return deck.questions.filter(q=>firstFlash[q.num]);
   return deck.questions;
 }
 
@@ -402,7 +417,7 @@ function startDeck(i){
   const deck=decks[i];
   currentDeckIdx=i;
   const mode=deck._mode||'all';
-  const modeLabel=mode==='ng'?'不正解のみ':mode==='unanswered'?'未回答のみ':'';
+  const modeLabel=mode==='ng'?'あとこれだけ':mode==='unanswered'?'未回答':mode==='learn'?'暗記用':mode==='flash'?'初回撃破':'全問';
   const challengeNum=(deck.challengeCount||0)+1;
   document.getElementById('quiz-deck-name').innerHTML=escHtml(deck.name)+(modeLabel?`<span class="mode-badge">${modeLabel}</span>`:'')+`<span class="challenge-badge">${challengeNum}回目</span>`;
   const qs=getQueueForMode(i,mode);
@@ -424,7 +439,7 @@ function resumeDeck(i){
   const deck=decks[i];
   currentDeckIdx=i;
   const mode=session.mode||'all';
-  const modeLabel=mode==='ng'?'不正解のみ':mode==='unanswered'?'未回答のみ':'';
+  const modeLabel=mode==='ng'?'あとこれだけ':mode==='unanswered'?'未回答':mode==='learn'?'暗記用':mode==='flash'?'初回撃破':'全問';
   document.getElementById('quiz-deck-name').innerHTML=escHtml(deck.name)+(modeLabel?`<span class="mode-badge">${modeLabel}</span>`:'');
   const allQs=getQueueForMode(i,mode);
   questions=allQs;
@@ -473,9 +488,13 @@ function showAnswer(){
 
 function judge(type){
   if(!decks[currentDeckIdx].record)decks[currentDeckIdx].record={};
+  if(!decks[currentDeckIdx].firstFlash)decks[currentDeckIdx].firstFlash={};
   const isOk=(type==='flash');
-  const isNg=(type==='ng'||type==='think');
   decks[currentDeckIdx].record[current.num]=isOk?'ok':'ng';
+  // 1回目チャレンジでflashなら初回撃破として記録
+  if(type==='flash'&&decks[currentDeckIdx].challengeCount===1){
+    decks[currentDeckIdx].firstFlash[current.num]=true;
+  }
   saveDecks();
   if(isOk)okCount++;else ngList.push(current);
   updateStats();nextQuestion();
