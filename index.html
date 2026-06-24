@@ -102,6 +102,9 @@ input[type=text]{padding:8px 10px;border:0.5px solid #b4b2a9;border-radius:8px;f
 .btn-row-3{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:4px}
 .challenge-badge{font-size:11px;padding:2px 8px;border-radius:20px;background:#e8f0fe;color:#1a56c4;margin-left:6px;font-weight:400}
 .challenge-label{font-size:11px;color:#888780;text-align:center;margin-bottom:2px}
+.btn-back{background:none;border:none;font-size:12px;color:#b4b2a9;cursor:pointer;padding:0;display:flex;align-items:center;gap:3px}
+.btn-back:hover{color:#5f5e5a}
+.back-row{display:flex;justify-content:flex-end;margin-bottom:4px;min-height:20px}
 </style>
 </head>
 <body>
@@ -138,6 +141,7 @@ input[type=text]{padding:8px 10px;border:0.5px solid #b4b2a9;border-radius:8px;f
       <div class="stat"><div class="stat-n" style="color:#a32d2d" id="s-ng">0</div><div class="stat-l">不正解</div></div>
     </div>
     <div id="card-area">
+      <div class="back-row"><button class="btn-back" id="btn-back" onclick="goBack()" style="display:none"><i class="ti ti-arrow-left" aria-hidden="true"></i> 前の問題に戻る</button></div>
       <div class="challenge-label" id="challenge-label"></div>
       <div class="pos-label" id="pos-label"></div>
       <div class="card">
@@ -173,6 +177,7 @@ let questions=[],queue=[],current=null,okCount=0,ngList=[];
 let pendingCSV=null;
 let showArchived=false;
 let dragSrcIdx=null;
+let prevState=null;
 
 function loadDecks(){
   try{const d=localStorage.getItem(STORAGE_KEY);if(d)decks=JSON.parse(d);}catch(e){decks=[];}
@@ -462,6 +467,7 @@ function backToList(){
 function nextQuestion(){
   if(queue.length===0){showFinish();return;}
   current=queue.shift();renderQuestion();saveSession();
+  prevState=prevState;// 戻るボタン用に保持
 }
 
 function renderQuestion(){
@@ -477,6 +483,8 @@ function renderQuestion(){
   document.getElementById('btn-area-after').style.display='none';
   document.getElementById('card-area').style.display='block';
   document.getElementById('fin-area').style.display='none';
+  const btnBack=document.getElementById('btn-back');
+  if(btnBack)btnBack.style.display=prevState?'flex':'none';
   updateProgress();
 }
 
@@ -490,8 +498,19 @@ function judge(type){
   if(!decks[currentDeckIdx].record)decks[currentDeckIdx].record={};
   if(!decks[currentDeckIdx].firstFlash)decks[currentDeckIdx].firstFlash={};
   const isOk=(type==='flash');
+  // 戻れるように直前の状態を保存
+  prevState={
+    question:current,
+    type:type,
+    wasOk:isOk,
+    wasInNgList:ngList.some(q=>q.num===current.num),
+    prevRecord:decks[currentDeckIdx].record[current.num],
+    wasFirstFlash:!!decks[currentDeckIdx].firstFlash[current.num],
+    okCount:okCount,
+    ngList:[...ngList],
+    queue:[...queue]
+  };
   decks[currentDeckIdx].record[current.num]=isOk?'ok':'ng';
-  // 1回目チャレンジでflashなら初回撃破として記録
   if(type==='flash'&&decks[currentDeckIdx].challengeCount===1){
     decks[currentDeckIdx].firstFlash[current.num]=true;
   }
@@ -527,6 +546,28 @@ function showFinish(){
     finBtn.innerHTML='<button class="btn btn-primary" style="margin-top:8px" onclick="restart(\'all\')"><i class="ti ti-refresh" aria-hidden="true"></i> 最初から</button>';
   }
   updateProgress();
+}
+
+function goBack(){
+  if(!prevState)return;
+  // キューと状態を戻す
+  queue=[prevState.question,...prevState.queue];
+  okCount=prevState.okCount;
+  ngList=prevState.ngList;
+  // 記録を戻す
+  if(prevState.prevRecord===undefined){
+    delete decks[currentDeckIdx].record[prevState.question.num];
+  }else{
+    decks[currentDeckIdx].record[prevState.question.num]=prevState.prevRecord;
+  }
+  if(!prevState.wasFirstFlash){
+    delete decks[currentDeckIdx].firstFlash[prevState.question.num];
+  }
+  saveDecks();
+  prevState=null;
+  current=queue.shift();
+  renderQuestion();
+  saveSession();
 }
 
 function restart(mode){
