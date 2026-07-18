@@ -8,7 +8,7 @@
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f0;min-height:100vh;display:flex;justify-content:center;padding:1rem}
-.container{width:100%;max-width:480px}
+.container{width:100%;max-width:560px}
 h1{font-size:18px;font-weight:500;color:#2c2c2a;text-align:center;margin:1rem 0 1.5rem}
 .section{display:none}.section.active{display:block}
 
@@ -45,6 +45,8 @@ h1{font-size:18px;font-weight:500;color:#2c2c2a;text-align:center;margin:1rem 0 
 .tag-learn.active{background:#0f6e56;border-color:#0f6e56;color:#fff}
 .tag-flash{border-color:#f0cb5a;color:#b07d00;background:#fefae8}
 .tag-divider{font-size:14px;color:#b4b2a9;display:flex;align-items:center;padding:0 2px}
+.tag-order{border-radius:6px;border-color:#8ba3c7;color:#1a3a6a;background:#eaf0f9;font-weight:500}
+.tag-order.active{background:#1a3a6a;border-color:#1a3a6a;color:#fff}
 .tag-flash.active{background:#b07d00;border-color:#b07d00;color:#fff}
 .tag-ng.active{background:#a32d2d;border-color:#a32d2d;color:#fff}
 
@@ -261,11 +263,13 @@ function renderDeckItem(d,i,session){
   const hasFlash=(s.flashCount>0);
   const tagBar=!isArchived?`
     <div class="tag-bar">
+      <span class="tag tag-order ${d._order==='sequential'?'active':''}" onclick="toggleOrder(${i})">番号順</span>
+      <span class="tag-divider">｜</span>
       <span class="tag ${(!d._mode||d._mode==='all')?'active':''}" onclick="setMode(${i},'all')">全問 ${s.total}</span>
       ${hasFlash?`<span class="tag tag-flash ${d._mode==='flash'?'active':''}" onclick="setMode(${i},'flash')">初回撃破 ${s.flashCount}</span>`:''}
       ${hasFlash?`<span class="tag tag-learn ${d._mode==='learn'?'active':''}" onclick="setMode(${i},'learn')">暗記用 ${s.learnAll}</span>`:''}
       <span class="tag-divider">｜</span>
-      <span class="tag tag-ng ${d._mode==='ng'?'active':''}" onclick="setMode(${i},'ng')">あとこれだけ ${s.ng}</span>
+      <span class="tag tag-ng ${d._mode==='ng'?'active':''}" onclick="setMode(${i},'ng')">あと${s.ng}問</span>
       <span class="tag ${d._mode==='unanswered'?'active':''}" onclick="setMode(${i},'unanswered')">未回答 ${s.unanswered}</span>
     </div>`:'';
 
@@ -407,6 +411,11 @@ function setMode(deckIdx,mode){
   saveDecks();renderList();
 }
 
+function toggleOrder(deckIdx){
+  decks[deckIdx]._order=(decks[deckIdx]._order==='sequential')?'random':'sequential';
+  saveDecks();renderList();
+}
+
 function getQueueForMode(deckIdx,mode){
   const deck=decks[deckIdx];
   const record=deck.record||{};
@@ -428,7 +437,7 @@ function startDeck(i){
   const qs=getQueueForMode(i,mode);
   if(qs.length===0){alert('該当する問題がありません');return;}
   questions=qs;
-  queue=shuffle([...qs]);
+  queue=(deck._order==='sequential')?[...qs]:shuffle([...qs]);
   okCount=0;ngList=[];
   if(!decks[i].challengeCount)decks[i].challengeCount=0;
   decks[i].challengeCount++;
@@ -583,7 +592,7 @@ function restart(mode){
     const cl=document.getElementById('challenge-label');
     if(cl) cl.textContent=decks[currentDeckIdx].challengeCount+'回目のチャレンジ';
   }
-  queue=shuffle([...questions]);okCount=0;ngList=[];
+  queue=(decks[currentDeckIdx]._order==='sequential')?[...questions]:shuffle([...questions]);okCount=0;ngList=[];
   document.getElementById('fin-area').style.display='none';
   nextQuestion();
 }
